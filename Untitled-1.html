@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <title>yassin - عجلة الحظ المتقدمة</title>
+    <style>
+        body { background: #1a1a2e; color: white; font-family: Arial; text-align: center; direction: rtl; margin: 0; padding: 20px; }
+        .main-grid { display: flex; justify-content: center; gap: 30px; flex-wrap: wrap; }
+        
+        /* تصميم العجلة */
+        #wheel-wrapper { position: relative; width: 400px; }
+        canvas { border: 5px solid #fff; border-radius: 50%; background: #16213e; }
+        #pointer { 
+            position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+            width: 0; height: 0; border-left: 15px solid transparent;
+            border-right: 15px solid transparent; border-top: 30px solid #ff4757;
+            z-index: 10;
+        }
+
+        /* قائمة التحكم */
+        .controls { background: #16213e; padding: 20px; border-radius: 15px; width: 350px; max-height: 80vh; overflow-y: auto; }
+        .setup-section { margin-bottom: 20px; border-bottom: 1px solid #444; padding-bottom: 15px; }
+        input[type="number"], input[type="text"] { padding: 8px; border-radius: 5px; border: none; margin: 5px; }
+        
+        .item-row { display: flex; align-items: center; justify-content: space-between; background: #1f2e50; padding: 8px; margin-bottom: 5px; border-radius: 5px; }
+        .item-row input[type="color"] { width: 30px; height: 30px; border: none; cursor: pointer; background: none; }
+        
+        button { background: #4facfe; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        button#spinBtn { background: #e94560; font-size: 22px; width: 100%; margin-top: 20px; }
+        
+        #winner-display { margin-top: 20px; font-size: 24px; color: #2ed573; font-weight: bold; min-height: 30px; }
+    </style>
+</head>
+<body>
+
+    <h2>🎡 عجلة الحظ التلقائية الذكية</h2>
+
+    <div class="main-grid">
+        <div id="wheel-wrapper">
+            <div id="pointer"></div>
+            <canvas id="canvas" width="400" height="400"></canvas>
+            <div id="winner-display"></div>
+            <button id="spinBtn" onclick="spin()">إبدأ التدوير!</button>
+        </div>
+
+        <div class="controls">
+            <div class="setup-section">
+                <label>عدد الأصناف:</label>
+                <input type="number" id="countInput" value="4" min="2" max="20">
+                <button onclick="generateItems()">توليد القائمة</button>
+            </div>
+            
+            <div id="itemsList">
+                </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("canvas");
+        const ctx = canvas.getContext("2d");
+        let segments = [];
+        let currentAngle = 0;
+        let isSpinning = false;
+
+        // توليد ألوان تلقائية
+        function getRandomColor() {
+            const colors = ['#ff4757', '#2ed573', '#1e90ff', '#ffa502', '#3742fa', '#70a1ff', '#7bed9f', '#eccc68'];
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
+
+        function generateItems() {
+            const count = document.getElementById("countInput").value;
+            const listDiv = document.getElementById("itemsList");
+            listDiv.innerHTML = "";
+            segments = [];
+
+            for (let i = 1; i <= count; i++) {
+                const color = getRandomColor();
+                const name = "صنف " + i;
+                
+                segments.push({ name: name, color: color });
+
+                const row = document.createElement("div");
+                row.className = "item-row";
+                row.innerHTML = `
+                    <input type="color" value="${color}" onchange="updateItem(${i-1}, 'color', this.value)">
+                    <input type="text" value="${name}" onchange="updateItem(${i-1}, 'name', this.value)" style="width: 60%">
+                `;
+                listDiv.appendChild(row);
+            }
+            drawWheel();
+        }
+
+        function updateItem(index, key, value) {
+            segments[index][key] = value;
+            drawWheel();
+        }
+
+        function drawWheel() {
+            const num = segments.length;
+            if (num === 0) return;
+            const arc = (2 * Math.PI) / num;
+
+            ctx.clearRect(0, 0, 400, 400);
+
+            segments.forEach((seg, i) => {
+                const angle = i * arc + currentAngle;
+                ctx.beginPath();
+                ctx.fillStyle = seg.color;
+                ctx.moveTo(200, 200);
+                ctx.arc(200, 200, 200, angle, angle + arc);
+                ctx.fill();
+                ctx.stroke();
+
+                // رسم النص
+                ctx.save();
+                ctx.translate(200, 200);
+                ctx.rotate(angle + arc / 2);
+                ctx.fillStyle = "#fff";
+                ctx.font = "bold 14px Arial";
+                ctx.textAlign = "right";
+                ctx.fillText(seg.name, 180, 5);
+                ctx.restore();
+            });
+        }
+
+        function spin() {
+            if (isSpinning || segments.length === 0) return;
+            isSpinning = true;
+            document.getElementById("winner-display").innerText = "جاري التدوير...";
+
+            const rotation = Math.random() * 2000 + 2000;
+            const duration = 4000;
+            let start = null;
+
+            function animate(timestamp) {
+                if (!start) start = timestamp;
+                let progress = timestamp - start;
+                let t = progress / duration;
+                
+                // معادلة التباطؤ (Ease Out)
+                let easeOut = 1 - Math.pow(1 - t, 3); 
+                
+                let step = (rotation * (1 - easeOut)) * Math.PI / 1800;
+                currentAngle += step;
+                drawWheel();
+
+                if (progress < duration) {
+                    requestAnimationFrame(animate);
+                } else {
+                    isSpinning = false;
+                    calculateWinner();
+                }
+            }
+            requestAnimationFrame(animate);
+        }
+
+        function calculateWinner() {
+            const num = segments.length;
+            const arc = (2 * Math.PI) / num;
+            
+            // حساب الزاوية الفعلية بالنسبة للمؤشر (المؤشر في الأعلى = -90 درجة)
+            let normalizedAngle = (Math.PI * 1.5 - currentAngle) % (Math.PI * 2);
+            if (normalizedAngle < 0) normalizedAngle += Math.PI * 2;
+            
+            let index = Math.floor(normalizedAngle / arc);
+            const winner = segments[index].name;
+
+            // شرط الأسماء المحظورة
+            if (winner === "محمد بالي" || winner === "مريم قدور") {
+                document.getElementById("winner-display").innerText = "الفائز: " + winner + " (أنت حمار بلا فائدة!)";
+                document.getElementById("winner-display").style.color = "#ff4757";
+            } else {
+                document.getElementById("winner-display").innerText = "🎉 الفائز هو: " + winner;
+                document.getElementById("winner-display").style.color = "#2ed573";
+            }
+        }
+
+        // تشغيل أولي
+        generateItems();
+    </script>
+</body>
+</html>
